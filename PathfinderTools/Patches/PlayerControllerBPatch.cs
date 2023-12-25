@@ -4,7 +4,6 @@ using System.Linq;
 using UnityEngine;
 using GameNetcodeStuff;
 using HarmonyLib;
-using UnityEngine.AI;
 
 namespace PathfinderTools.Patches
 {
@@ -13,6 +12,8 @@ namespace PathfinderTools.Patches
     {
         private static LineRenderer scrapLine = null;
         private static LineRenderer exitLine = null;
+        private static List<GrabbableObject> scraps;
+        private static List<EntranceTeleport> exitTeleports;
 
 
         [HarmonyPatch("Start")]
@@ -31,6 +32,9 @@ namespace PathfinderTools.Patches
             exitLine.startColor = new Color(255, 0, 0);
             exitLine.endColor = new Color(0, 255, 0);
             exitLine.material = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply"));
+
+            GetAllValidScrap();
+            GetAllValidExitTeleports();
         }
 
         [HarmonyPatch("Update")]
@@ -58,19 +62,29 @@ namespace PathfinderTools.Patches
             }
         }
 
+        public static void GetAllValidScrap()
+        {
+            scraps = UnityEngine.Object.FindObjectsOfType<GrabbableObject>().ToList();
+            RemoveInvalidScrap(scraps);
+        }
+
+        public static void GetAllValidExitTeleports()
+        {
+            exitTeleports = UnityEngine.Object.FindObjectsOfType<EntranceTeleport>().ToList();
+            RemoveInvalidExit(exitTeleports);
+        }
 
         static void ExitFinder(Vector3 playerPosition)
         {
             if (GameNetworkManager.Instance.localPlayerController.isInElevator || GameNetworkManager.Instance.localPlayerController.isPlayerDead)
                 return;
 
-            List<EntranceTeleport> exitTeleports = UnityEngine.Object.FindObjectsOfType<EntranceTeleport>().ToList();
-            RemoveInvalidExit(exitTeleports);
+            GetAllValidExitTeleports();
             List<Transform> transforms = exitTeleports.Select(entranceTeleport => entranceTeleport.entrancePoint).ToList();
-            EntranceTeleport closest = exitTeleports[GetClosestTransform(transforms, playerPosition)];
+            EntranceTeleport closest = exitTeleports[Pathfinding.GetClosestTransform(transforms, playerPosition)];
 
             //Plugin.logger.LogInfo($"Player position: {playerPosition} Closest Object: {closest.transform.position} [{closest.isEntranceToBuilding}, {closest.entranceId}]");
-            DrawPathToTransform(closest.entrancePoint, playerPosition, exitLine);
+            Pathfinding.DrawPathToTransform(closest.entrancePoint, playerPosition, exitLine);
         }
 
         public static void ScrapFinder(Vector3 playerPosition)
@@ -78,53 +92,21 @@ namespace PathfinderTools.Patches
             if (!GameNetworkManager.Instance.localPlayerController.isInsideFactory || GameNetworkManager.Instance.localPlayerController.isPlayerDead)
                 return;
 
-
-            List<GrabbableObject> scraps = UnityEngine.Object.FindObjectsOfType<GrabbableObject>().ToList();
+            GetAllValidScrap();
             GrabbableObject closestValidScrap = GetClosestValidScrap(scraps, playerPosition);
             if (closestValidScrap == null)
                 return;
 
-            DrawPathToTransform(closestValidScrap.transform, playerPosition, scrapLine);
-        }
-        
+            Pathfinding.DrawPathToTransform(closestValidScrap.transform, playerPosition, scrapLine);
+        }        
+
         public static GrabbableObject GetClosestValidScrap(List<GrabbableObject> scraps, Vector3 pos)
         {
             if (scraps == null)
                 return null;
 
-            RemoveInvalidScrap(scraps);
             List<Transform> transforms = scraps.Select(grabbableObject => grabbableObject.transform).ToList();
-            return scraps[GetClosestTransform(transforms, pos)];
-        }
-
-        public static int GetClosestTransform<T>(List<T> list, Vector3 pos) where T : Transform
-        {
-            float minDist = Mathf.Infinity;
-            int i = 0;
-            int index = 0;
-            foreach (Transform item in list)
-            {
-                //Pathfinding distance
-                NavMeshPath path = new NavMeshPath();
-
-                if (NavMesh.CalculatePath(pos, item.position, -1, path))
-                {
-                    float dist = Vector3.Distance(pos, path.corners[0]);
-
-                    for (int j = 1; j < path.corners.Length; j++)
-                    {
-                        dist += Vector3.Distance(path.corners[j - 1], path.corners[j]);
-                    }
-
-                    if (dist < minDist)
-                    {
-                        minDist = dist;
-                        index = i;
-                    }
-                }
-                i++;
-            }
-            return index;
+            return scraps[Pathfinding.GetClosestTransform(transforms, pos)];
         }
 
         public static void RemoveInvalidScrap(List<GrabbableObject> grabbableObjects)
@@ -152,20 +134,6 @@ namespace PathfinderTools.Patches
             }
         }
 
-        public static void DrawPathToTransform<T>(T transform, Vector3 pos, LineRenderer lineRenderer) where T : Transform
-        {
-            NavMeshPath path = new NavMeshPath();
-            if (NavMesh.CalculatePath(pos, transform.position, NavMesh.AllAreas, path))
-            {
-                lineRenderer.positionCount = path.corners.Length;
-                lineRenderer.SetPositions(path.corners);
-            }
-            else
-            {
-                //Plugin.logger.LogError($"Can't draw path between {pos} and {transform.position}");
-            }
-
-        }
 
     }
 }

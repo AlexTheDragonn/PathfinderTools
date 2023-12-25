@@ -73,6 +73,7 @@
     <Compile Include="Objects\Exitfinder.cs" />
     <Compile Include="Objects\Scrapfinder.cs" />
     <Compile Include="Patches\PlayerControllerBPatch.cs" />
+    <Compile Include="Pathfinding\Pathfinding.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
