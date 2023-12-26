@@ -43,6 +43,7 @@ namespace PathfinderTools
 
         public static void DrawPathToTransform<T>(T transform, Vector3 pos, LineRenderer lineRenderer) where T : Transform
         {
+            lineRenderer.enabled = true;
             NavMeshPath path = new NavMeshPath();
             if (NavMesh.CalculatePath(pos, transform.position, NavMesh.AllAreas, path))
             {

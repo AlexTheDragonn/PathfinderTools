@@ -10,9 +10,8 @@ namespace PathfinderTools.Patches
     [HarmonyPatch(typeof(PlayerControllerB))]
     class PlayerControllerBPatch
     {
-        private static LineRenderer scrapLine = null;
         private static LineRenderer exitLine = null;
-        private static List<GrabbableObject> scraps;
+
         private static List<EntranceTeleport> exitTeleports;
 
 
@@ -20,20 +19,12 @@ namespace PathfinderTools.Patches
         [HarmonyPostfix]
         static void StartPatch()
         {
-            GameObject scrapLineGO = new GameObject("ScrapFinderLine", typeof(LineRenderer));
-            scrapLine = scrapLineGO.GetComponent<LineRenderer>();
-            scrapLine.startColor = new Color(0, 0, 255);
-            scrapLine.endColor = new Color(0, 0, 255);
-            scrapLine.material = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply"));
-
-
             GameObject exitLineGO = new GameObject("ExitFinderLine", typeof(LineRenderer));
             exitLine = exitLineGO.GetComponent<LineRenderer>();
             exitLine.startColor = new Color(255, 0, 0);
             exitLine.endColor = new Color(0, 255, 0);
             exitLine.material = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply"));
 
-            GetAllValidScrap();
             GetAllValidExitTeleports();
         }
 
@@ -53,25 +44,12 @@ namespace PathfinderTools.Patches
             try
             {
                 Vector3 playerPosition = GameNetworkManager.Instance.localPlayerController.transform.position;
-                ScrapFinder(playerPosition);
                 ExitFinder(playerPosition);
             }
             catch(Exception e)
             {
                 Plugin.logger.LogWarning($"Can't get GameNetworkManager.Instance.localPlayerController. This is fine during startup, but not mid-game.\n{e}");
             }
-        }
-
-        public static void GetAllValidScrap()
-        {
-            scraps = UnityEngine.Object.FindObjectsOfType<GrabbableObject>().ToList();
-            RemoveInvalidScrap(scraps);
-        }
-
-        public static void GetAllValidExitTeleports()
-        {
-            exitTeleports = UnityEngine.Object.FindObjectsOfType<EntranceTeleport>().ToList();
-            RemoveInvalidExit(exitTeleports);
         }
 
         static void ExitFinder(Vector3 playerPosition)
@@ -87,38 +65,10 @@ namespace PathfinderTools.Patches
             Pathfinding.DrawPathToTransform(closest.entrancePoint, playerPosition, exitLine);
         }
 
-        public static void ScrapFinder(Vector3 playerPosition)
+        public static void GetAllValidExitTeleports()
         {
-            if (!GameNetworkManager.Instance.localPlayerController.isInsideFactory || GameNetworkManager.Instance.localPlayerController.isPlayerDead)
-                return;
-
-            GetAllValidScrap();
-            GrabbableObject closestValidScrap = GetClosestValidScrap(scraps, playerPosition);
-            if (closestValidScrap == null)
-                return;
-
-            Pathfinding.DrawPathToTransform(closestValidScrap.transform, playerPosition, scrapLine);
-        }        
-
-        public static GrabbableObject GetClosestValidScrap(List<GrabbableObject> scraps, Vector3 pos)
-        {
-            if (scraps == null)
-                return null;
-
-            List<Transform> transforms = scraps.Select(grabbableObject => grabbableObject.transform).ToList();
-            return scraps[Pathfinding.GetClosestTransform(transforms, pos)];
-        }
-
-        public static void RemoveInvalidScrap(List<GrabbableObject> grabbableObjects)
-        {
-            for (int i = grabbableObjects.Count - 1; i >= 0; i--)
-            {
-                GrabbableObject scrap = grabbableObjects[i];
-                if (scrap.isHeld || !scrap.isInFactory || !scrap.itemProperties.isScrap || scrap.itemProperties.itemName == "Hive")
-                {
-                    grabbableObjects.RemoveAt(i);
-                }
-            }
+            exitTeleports = UnityEngine.Object.FindObjectsOfType<EntranceTeleport>().ToList();
+            RemoveInvalidExit(exitTeleports);
         }
 
         public static void RemoveInvalidExit(List<EntranceTeleport> entranceTeleports)
@@ -133,7 +83,6 @@ namespace PathfinderTools.Patches
                 }
             }
         }
-
 
     }
 }
